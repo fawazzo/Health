@@ -28,17 +28,13 @@ const getDoctors = asyncHandler(async (req, res) => {
             { 'profile.lastName': { $regex: name, $options: 'i' } }
         ];
     }
-    // For city, it's more complex as doctor profiles don't directly store city.
-    // This would require linking to hospitals in that city, or doctors having a primary clinic address.
-    // For simplicity, let's assume if hospitalId is used, it covers the location.
-    // A more advanced solution would query hospitals by city and then filter doctors affiliated with those.
 
     const doctors = await User.find(query)
-        .select('-password -isActive') // Don't send password hash or isActive status
+        .select('-password -isActive')
         .populate({
             path: 'profile.hospitalAffiliations',
-            select: 'name address city'
-        }); // Populate hospital details
+            select: 'name address city' // <-- THIS IS THE CHANGE I MADE BEFORE
+        });
 
     res.json(doctors);
 });
@@ -51,7 +47,7 @@ const getDoctorById = asyncHandler(async (req, res) => {
         .select('-password -isActive')
         .populate({
             path: 'profile.hospitalAffiliations',
-            select: 'name address city'
+            select: 'name address city' // <-- THIS IS THE CHANGE I MADE BEFORE
         });
 
     if (doctor) {
@@ -76,7 +72,8 @@ const setDoctorAvailability = asyncHandler(async (req, res) => {
 
     // Optional: Validate if the doctor is affiliated with this hospital
     const doctor = await User.findById(doctorId);
-    if (!doctor.profile.hospitalAffiliations.includes(hospitalId)) {
+    // Added !doctor check here for robustness
+    if (!doctor || !doctor.profile.hospitalAffiliations.some(id => id.equals(hospitalId))) { // Changed includes to some(id.equals) for ObjectId comparison
         return res.status(403).json({ message: 'Doctor is not affiliated with this hospital.' });
     }
 

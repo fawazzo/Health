@@ -1,6 +1,7 @@
 // controllers/hospitalController.js
 const Hospital = require('../models/Hospital');
-const asyncHandler = require('express-async-handler');
+const asyncHandler = require = require('express-async-handler');
+const User = require('../models/User'); // Import User model to access managedHospitalId from profile
 
 // @desc    Get all hospitals
 // @route   GET /api/hospitals
@@ -43,29 +44,45 @@ const createHospital = asyncHandler(async (req, res) => {
 
 // @desc    Update a hospital
 // @route   PUT /api/hospitals/:id
-// @access  Private/Admin
+// @access  Private/Admin, Hospital_Admin
 const updateHospital = asyncHandler(async (req, res) => {
     const { name, address, city, state, zipCode, phoneNumber, website, description, services, departments } = req.body;
 
     const hospital = await Hospital.findById(req.params.id);
 
-    if (hospital) {
-        hospital.name = name || hospital.name;
-        hospital.address = address || hospital.address;
-        hospital.city = city || hospital.city;
-        hospital.state = state || hospital.state;
-        hospital.zipCode = zipCode || hospital.zipCode;
-        hospital.phoneNumber = phoneNumber || hospital.phoneNumber;
-        hospital.website = website || hospital.website;
-        hospital.description = description || hospital.description;
-        hospital.services = services || hospital.services;
-        hospital.departments = departments || hospital.departments;
-
-        const updatedHospital = await hospital.save();
-        res.json(updatedHospital);
-    } else {
-        res.status(404).json({ message: 'Hospital not found' });
+    if (!hospital) {
+        return res.status(404).json({ message: 'Hospital not found' });
     }
+
+    // --- NEW AUTHORIZATION LOGIC FOR HOSPITAL ADMIN ---
+    const userRole = req.user.role;
+    const userId = req.user._id;
+
+    if (userRole === 'hospital_admin') {
+        // First, verify that the hospital admin has a managedHospitalId in their profile
+        // And that the ID matches the hospital they are trying to update
+        if (!req.user.profile || !req.user.profile.managedHospitalId || !req.user.profile.managedHospitalId.equals(hospital._id)) {
+            return res.status(403).json({ message: 'Not authorized to update this hospital.' });
+        }
+    }
+    // Admin role ('admin') is already authorized by the route middleware
+    // No specific check needed here, as they can update any hospital.
+    // --- END NEW AUTHORIZATION LOGIC ---
+
+
+    hospital.name = name || hospital.name;
+    hospital.address = address || hospital.address;
+    hospital.city = city || hospital.city;
+    hospital.state = state || hospital.state;
+    hospital.zipCode = zipCode || hospital.zipCode;
+    hospital.phoneNumber = phoneNumber || hospital.phoneNumber;
+    hospital.website = website || hospital.website;
+    hospital.description = description || hospital.description;
+    hospital.services = services || hospital.services;
+    hospital.departments = departments || hospital.departments;
+
+    const updatedHospital = await hospital.save();
+    res.json(updatedHospital);
 });
 
 // @desc    Delete a hospital

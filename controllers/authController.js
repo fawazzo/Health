@@ -2,19 +2,17 @@
 const User = require('../models/User');
 const generateToken = require('../utils/generateToken'); // Utility to generate JWT token
 const passwordUtils = require('../utils/passwordUtils'); // Utility for password hashing/comparison
-const asyncHandler = require('express-async-handler'); // Simple wrapper for async errors to avoid try/catch blocks in every controller
-
-// IMPORTANT: Profile validation based on role is crucial here.
-// For a robust system, you'd have more specific validation for each role's profile.
-// We'll use the generic validator from utils for demonstration.
+const asyncHandler = require('express-async-handler');
 const validator = require('../utils/validator'); // For deeper profile validation
+const Hospital = require('../models/Hospital'); // <-- ADD THIS LINE
+const Pharmacy = require('../models/Pharmacy'); // <-- ADD THIS LINE
+const { Types } = require('mongoose'); // For ObjectId checks, though validator might handle it
+
 
 // @desc    Register a new user
 // @route   POST /api/auth/register
 // @access  Public
 const registerUser = asyncHandler(async (req, res) => {
-    // validationMiddleware will handle basic email, password, and role format.
-    // Additional business logic validation for 'profile' object based on 'role'.
     const { email, password, role, profile } = req.body;
 
     // Validate profile object based on the role
@@ -24,13 +22,39 @@ const registerUser = asyncHandler(async (req, res) => {
         profileValidationResult = validator.validateDoctorProfile(profile);
     } else if (role === 'patient') {
         profileValidationResult = validator.validatePatientProfile(profile);
+    } else if (role === 'hospital_admin') { // <-- ADDED THIS BLOCK
+        profileValidationResult = validator.validateHospitalAdminProfile(profile);
+    } else if (role === 'pharmacy_admin') { // <-- ADDED THIS BLOCK
+        profileValidationResult = validator.validatePharmacyAdminProfile(profile);
     }
-    // Add more else if blocks for 'hospital_admin', 'pharmacy_admin' if they have specific profile requirements
     // Admin role might not need a detailed profile for registration.
 
     if (!profileValidationResult.isValid) {
         return res.status(400).json({ message: profileValidationResult.message });
     }
+
+    // --- NEW: Additional backend validation for managed IDs ---
+    if (role === 'hospital_admin' && profile && profile.managedHospitalId) {
+        if (!Types.ObjectId.isValid(profile.managedHospitalId)) {
+            return res.status(400).json({ message: 'Invalid Hospital ID format for hospital admin profile.' });
+        }
+        const hospital = await Hospital.findById(profile.managedHospitalId);
+        if (!hospital) {
+            return res.status(400).json({ message: 'Hospital specified for hospital admin does not exist.' });
+        }
+    }
+
+    if (role === 'pharmacy_admin' && profile && profile.managedPharmacyId) {
+        if (!Types.ObjectId.isValid(profile.managedPharmacyId)) {
+            return res.status(400).json({ message: 'Invalid Pharmacy ID format for pharmacy admin profile.' });
+        }
+        const pharmacy = await Pharmacy.findById(profile.managedPharmacyId);
+        if (!pharmacy) {
+            return res.status(400).json({ message: 'Pharmacy specified for pharmacy admin does not exist.' });
+        }
+    }
+    // --- END NEW VALIDATION ---
+
 
     // Check if user already exists
     const userExists = await User.findOne({ email });
@@ -39,7 +63,6 @@ const registerUser = asyncHandler(async (req, res) => {
     }
 
     // Create user
-    // The password hashing will automatically happen in the User model's pre('save') hook
     const user = await User.create({
         email,
         password,
@@ -48,17 +71,14 @@ const registerUser = asyncHandler(async (req, res) => {
     });
 
     if (user) {
-        // Successful registration
         res.status(201).json({
             _id: user._id,
             email: user.email,
             role: user.role,
             profile: user.profile,
-            token: generateToken(user._id), // Generate and send JWT token
+            token: generateToken(user._id),
         });
     } else {
-        // This case should ideally be caught by validation or DB errors,
-        // but it's a fallback for unexpected issues.
         res.status(400).json({ message: 'Invalid user data provided.' });
     }
 });
@@ -67,18 +87,14 @@ const registerUser = asyncHandler(async (req, res) => {
 // @route   POST /api/auth/login
 // @access  Public
 const loginUser = asyncHandler(async (req, res) => {
-    // validationMiddleware handles checking if email and password are provided and formatted correctly.
     const { email, password } = req.body;
 
-    // Check for user by email (explicitly select password for comparison)
     const user = await User.findOne({ email }).select('+password');
 
     if (!user) {
-        // Using generic message for security, don't indicate if email or password was wrong
         return res.status(401).json({ message: 'Invalid credentials.' });
     }
 
-    // Compare passwords using the utility function
     const isMatch = await passwordUtils.comparePasswords(password, user.password);
 
     if (user && isMatch) {
@@ -87,7 +103,7 @@ const loginUser = asyncHandler(async (req, res) => {
             email: user.email,
             role: user.role,
             profile: user.profile,
-            token: generateToken(user._id), // Generate and send JWT token
+            token: generateToken(user._id),
         });
     } else {
         res.status(401).json({ message: 'Invalid credentials.' });
@@ -98,12 +114,9 @@ const loginUser = asyncHandler(async (req, res) => {
 // @route   GET /api/auth/me
 // @access  Private
 const getMe = asyncHandler(async (req, res) => {
-    // req.user is populated by the `protect` middleware
     if (req.user) {
-        // Return user data (password is already excluded by .select('-password') in protect middleware)
         res.json(req.user);
     } else {
-        // This case should ideally not happen if 'protect' middleware works correctly
         res.status(404).json({ message: 'User data not found for authenticated session.' });
     }
 });

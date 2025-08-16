@@ -17,7 +17,8 @@ const pharmacySchema = new mongoose.Schema({
     zipCode: { type: String },
     phoneNumber: {
         type: String,
-        match: [/^\+?\d{10,15}$/, 'Please enter a valid phone number']
+        // UPDATED REGEX: Allows digits, optional '+' at start, spaces, hyphens, and parentheses
+        match: [/^\+?[\d\s\-\(\)]{10,20}$/, 'Please enter a valid phone number']
     },
     website: {
         type: String,
@@ -39,7 +40,8 @@ const pharmacySchema = new mongoose.Schema({
     timestamps: true
 });
 
-pharmacySchema.index({ name: 1 });
+// REMOVE THE FOLLOWING DUPLICATE INDEXES based on previous discussion
+// pharmacySchema.index({ name: 1 }); // Remove this if unique: true is used in schema
 pharmacySchema.index({ city: 1 });
 pharmacySchema.index({ location: '2dsphere' }); // For geospatial queries
 

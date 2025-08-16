@@ -58,6 +58,40 @@ const validator = {
         return { isValid: true };
     },
 
+    // NEW: Validate Hospital Admin's profile fields
+    validateHospitalAdminProfile: (profile) => {
+        if (!profile || typeof profile !== 'object') {
+            return { isValid: false, message: 'Hospital Admin profile is required.' };
+        }
+        if (!profile.firstName || !profile.lastName) {
+            return { isValid: false, message: 'Hospital Admin first name and last name are required.' };
+        }
+        if (!profile.managedHospitalId) {
+            return { isValid: false, message: 'Managed Hospital ID is required for hospital admin.' };
+        }
+        if (!validator.isMongoId(profile.managedHospitalId)) { // Use the existing isMongoId validator
+            return { isValid: false, message: 'Invalid Managed Hospital ID format.' };
+        }
+        return { isValid: true };
+    },
+
+    // NEW: Validate Pharmacy Admin's profile fields
+    validatePharmacyAdminProfile: (profile) => {
+        if (!profile || typeof profile !== 'object') {
+            return { isValid: false, message: 'Pharmacy Admin profile is required.' };
+        }
+        if (!profile.firstName || !profile.lastName) {
+            return { isValid: false, message: 'Pharmacy Admin first name and last name are required.' };
+        }
+        if (!profile.managedPharmacyId) {
+            return { isValid: false, message: 'Managed Pharmacy ID is required for pharmacy admin.' };
+        }
+        if (!validator.isMongoId(profile.managedPharmacyId)) { // Use the existing isMongoId validator
+            return { isValid: false, message: 'Invalid Managed Pharmacy ID format.' };
+        }
+        return { isValid: true };
+    },
+
     // Add more custom validation functions as needed
 };
 

@@ -1,6 +1,7 @@
 // controllers/pharmacyController.js
 const Pharmacy = require('../models/Pharmacy');
 const asyncHandler = require('express-async-handler');
+const User = require('../models/User'); // Import User model to access managedPharmacyId from profile
 
 // @desc    Get all pharmacies (with filters/search)
 // @route   GET /api/pharmacies
@@ -78,33 +79,48 @@ const createPharmacy = asyncHandler(async (req, res) => {
 
 // @desc    Update a pharmacy
 // @route   PUT /api/pharmacies/:id
-// @access  Private/Admin, Pharmacy_Admin (future role)
+// @access  Private/Admin, Pharmacy_Admin
 const updatePharmacy = asyncHandler(async (req, res) => {
     const { name, address, city, state, zipCode, phoneNumber, website, latitude, longitude, services } = req.body;
 
     const pharmacy = await Pharmacy.findById(req.params.id);
 
-    if (pharmacy) {
-        pharmacy.name = name || pharmacy.name;
-        pharmacy.address = address || pharmacy.address;
-        pharmacy.city = city || pharmacy.city;
-        pharmacy.state = state || pharmacy.state;
-        pharmacy.zipCode = zipCode || pharmacy.zipCode;
-        pharmacy.phoneNumber = phoneNumber || pharmacy.phoneNumber;
-        pharmacy.website = website || pharmacy.website;
-        if (latitude && longitude) {
-            pharmacy.location = {
-                type: 'Point',
-                coordinates: [parseFloat(longitude), parseFloat(latitude)]
-            };
-        }
-        pharmacy.services = services || pharmacy.services;
-
-        const updatedPharmacy = await pharmacy.save();
-        res.json(updatedPharmacy);
-    } else {
-        res.status(404).json({ message: 'Pharmacy not found' });
+    if (!pharmacy) { // Changed from `if(pharmacy)` to `if(!pharmacy)` for clarity and immediate return
+        return res.status(404).json({ message: 'Pharmacy not found' });
     }
+
+    // --- NEW AUTHORIZATION LOGIC FOR PHARMACY ADMIN ---
+    const userRole = req.user.role;
+    const userId = req.user._id;
+
+    if (userRole === 'pharmacy_admin') {
+        // First, verify that the pharmacy admin has a managedPharmacyId in their profile
+        // And that the ID matches the pharmacy they are trying to update
+        if (!req.user.profile || !req.user.profile.managedPharmacyId || !req.user.profile.managedPharmacyId.equals(pharmacy._id)) {
+            return res.status(403).json({ message: 'Not authorized to update this pharmacy.' });
+        }
+    }
+    // Admin role ('admin') is already authorized by the route middleware
+    // No specific check needed here, as they can update any pharmacy.
+    // --- END NEW AUTHORIZATION LOGIC ---
+
+    pharmacy.name = name || pharmacy.name;
+    pharmacy.address = address || pharmacy.address;
+    pharmacy.city = city || pharmacy.city;
+    pharmacy.state = state || pharmacy.state;
+    pharmacy.zipCode = zipCode || pharmacy.zipCode;
+    pharmacy.phoneNumber = phoneNumber || pharmacy.phoneNumber;
+    pharmacy.website = website || pharmacy.website;
+    if (latitude && longitude) {
+        pharmacy.location = {
+            type: 'Point',
+            coordinates: [parseFloat(longitude), parseFloat(latitude)]
+        };
+    }
+    pharmacy.services = services || pharmacy.services;
+
+    const updatedPharmacy = await pharmacy.save();
+    res.json(updatedPharmacy);
 });
 
 // @desc    Delete a pharmacy

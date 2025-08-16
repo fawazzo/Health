@@ -2,6 +2,7 @@
 const express = require('express');
 const morgan = require('morgan');
 const errorHandler = require('./middleware/errorHandler');
+const cors = require('cors');
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
@@ -20,6 +21,7 @@ const pharmacyRoutes = require('./routes/pharmacyRoutes');
 const app = express();
 
 // Middleware
+app.use(cors());
 app.use(express.json()); // Body parser for JSON
 app.use(morgan('dev')); // HTTP request logger
 
